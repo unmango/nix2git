@@ -130,6 +130,58 @@
               touch "$out"
             '';
 
+        # Removal is warn-only: the script must name a dropped repository that
+        # still exists, and stay quiet about everything else.
+        orphans =
+          let
+            manifest = home.config.xdg.stateFile."nix2git/repositories";
+            target = manifest.target;
+            expected = pkgs.writeText "expected-manifest" ''
+              /home/nix2git/mirrors/example.git
+              /home/nix2git/src/example
+            '';
+          in
+          pkgs.runCommand "nix2git-orphans"
+            {
+              nativeBuildInputs = [ pkgs.gnugrep ];
+            }
+            ''
+              # The manifest lists every enabled repository resolved against the
+              # home directory, sorted, and nothing else.
+              diff -u ${expected} ${manifest.source}
+
+              mkdir -p \
+                old/home-files/${builtins.dirOf target} \
+                new/home-files/${builtins.dirOf target} \
+                repos/kept \
+                repos/dropped
+
+              printf '%s\n' "$PWD/repos/kept" "$PWD/repos/dropped" "$PWD/repos/vanished" \
+                > old/home-files/${target}
+              printf '%s\n' "$PWD/repos/kept" > new/home-files/${target}
+
+              oldGenPath="$PWD/old"
+              newGenPath="$PWD/new"
+              warnEcho() { echo "$*"; }
+
+              orphans() {
+              ${home.config.home.activation.nix2gitOrphans.data}
+              }
+              orphans > warnings
+
+              grep -qF "$PWD/repos/dropped" warnings
+              ! grep -qF "repos/kept" warnings
+              ! grep -qF "repos/vanished" warnings
+              [ "$(wc -l < warnings)" -eq 1 ]
+
+              # A first activation has no previous generation to compare against.
+              unset oldGenPath
+              orphans > first-run
+              [ ! -s first-run ]
+
+              touch "$out"
+            '';
+
         # The home-manager module has to produce an activation entry that
         # resolves relative paths against the home directory and honours enable.
         home-manager-module =

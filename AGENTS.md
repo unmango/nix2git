@@ -6,6 +6,11 @@ The primary consumer-facing output is a home-manager module; a flake-parts modul
 The only implemented feature is initializing empty repositories at a given path.
 Anything that mutates an existing repository is out of scope until it is asked for.
 
+nix2git never deletes a repository, and that is a deliberate limit rather than a missing feature.
+`files.nix` in home-manager only removes a path it can prove it created, meaning a symlink into a
+`-home-manager-files` store path. No such proof exists for a git repository, and its contents exist
+nowhere else, so removal warns and stops there.
+
 The canonical remote is `git@gitlab.com:unmango/nix/2git.git`, so CI lives in `.gitlab-ci.yml`
 and renovate reads `renovate.json` at the repository root. There is no GitHub mirror;
 `.github/` holds only the Copilot instructions pointer.
@@ -48,9 +53,19 @@ or `self`. `checks/default.nix` is the deliberate exception, stated in a comment
 file: it is a flake module, and it has to reach for `home-manager` and `flake-parts` to evaluate
 the consumer modules the way a downstream flake would.
 
-The checks cover three layers: the rendered script actually creating repositories in a sandbox,
-the home-manager module producing the right activation text, and the flake-parts module producing
-a working app via `evalFlakeModule`.
+Removal is detected by diffing generations, the same way `systemd.nix` and `misc/dconf.nix` do it.
+The set of declared repositories is written through `xdg.stateFile`, which gets `files.nix` to place
+a copy in the generation; the `nix2gitOrphans` activation entry then reads
+`$oldGenPath/home-files/<target>` and compares it against `$newGenPath`. `$oldGenPath` is unset on a
+first activation, so the entry has to tolerate its absence.
+
+The flake-parts module has no equivalent. There is no generation to diff against, so removal is
+invisible to it by construction.
+
+The checks cover four layers: the rendered script actually creating repositories in a sandbox,
+the home-manager module producing the right activation text, the flake-parts module producing
+a working app via `evalFlakeModule`, and the orphan script warning about exactly the repositories
+that were dropped and still exist.
 
 ## Conventions
 

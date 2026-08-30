@@ -44,6 +44,21 @@ A repository that already exists is left alone; nix2git never rewrites history, 
 Relative paths are resolved against `home.homeDirectory`.
 The repositories are created by a home-manager activation script that runs after `writeBoundary`, so `home-manager switch --dry-run` reports what it would do without touching the filesystem.
 
+### Removal
+
+nix2git never deletes a repository.
+It cannot prove it created the one it finds at a path, and a repository's contents exist nowhere else.
+
+Removing an entry from `repositories` instead prints a warning on the next activation, naming the path so it does not silently become unmanaged.
+
+```
+nix2git: /home/erik/src/old-project is no longer declared but still exists. Delete it yourself if you no longer want it.
+```
+
+Set `nix2git.orphans = "ignore"` to turn the warning off.
+
+The list of declared repositories is written to `$XDG_STATE_HOME/nix2git/repositories`, which is how activation knows what the previous generation declared.
+
 ## flake-parts
 
 ```nix
