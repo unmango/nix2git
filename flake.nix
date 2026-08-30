@@ -14,13 +14,36 @@
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
-    inputs@{ flake-parts, ... }:
+    inputs@{ flake-parts, self, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = import inputs.systems;
-      imports = [ inputs.treefmt-nix.flakeModule ];
+
+      imports = with inputs; [
+        treefmt-nix.flakeModule
+        ./checks
+      ];
+
+      flake = {
+        lib = import ./lib { inherit (inputs.nixpkgs) lib; };
+
+        homeModules = {
+          nix2git = ./modules/home-manager.nix;
+          default = self.homeModules.nix2git;
+        };
+
+        flakeModules = {
+          nix2git = ./modules/flake.nix;
+          default = self.flakeModules.nix2git;
+        };
+      };
 
       perSystem =
         { pkgs, ... }:
