@@ -9,12 +9,9 @@ A flake-parts module covers the same ground for repositories that belong to a pr
 
 ```nix
 {
-  inputs.nix2git.url = "gitlab:unmango/nix%2F2git";
+  inputs.nix2git.url = "github:unmango/nix2git";
 }
 ```
-
-The subgroup separator is percent-encoded because a flake reference reads the
-second path segment as the repository name.
 
 ## Status
 
@@ -31,7 +28,7 @@ A repository that already exists is left alone; nix2git never rewrites history, 
     enable = true;
 
     repositories = {
-      "src/gitlab.com/unmango/nix/2git" = { };
+      "src/github.com/unmango/nix2git" = { };
       "mirrors/dotfiles.git" = {
         bare = true;
         defaultBranch = "main";

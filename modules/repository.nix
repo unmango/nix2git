@@ -15,7 +15,7 @@ in
       type = types.str;
       default = name;
       defaultText = lib.literalMD "the attribute name";
-      example = "src/gitlab.com/unmango/nix/2git";
+      example = "src/github.com/unmango/nix2git";
       description = ''
         Location of the working tree, or of the repository itself when {option}`bare` is set.
 

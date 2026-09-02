@@ -51,7 +51,7 @@
           devShells.default = pkgs.mkShellNoCC {
             packages = with pkgs; [
               git
-              glab
+              gh
               gnumake
               nixfmt
             ];

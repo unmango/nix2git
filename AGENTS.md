@@ -11,9 +11,8 @@ nix2git never deletes a repository, and that is a deliberate limit rather than a
 `-home-manager-files` store path. No such proof exists for a git repository, and its contents exist
 nowhere else, so removal warns and stops there.
 
-The canonical remote is `git@gitlab.com:unmango/nix/2git.git`, so CI lives in `.gitlab-ci.yml`
-and renovate reads `renovate.json` at the repository root. There is no GitHub mirror;
-`.github/` holds only the Copilot instructions pointer.
+The canonical remote is `git@github.com:unmango/nix2git.git`, so CI lives in
+`.github/workflows/ci.yml` and renovate reads `renovate.json` at the repository root.
 
 ## Commands
 
@@ -36,7 +35,7 @@ modules/home-manager.nix  home-manager module, `nix2git.*`
 modules/flake.nix         flake-parts module, `perSystem.nix2git.*`
 checks/                   flake-parts module holding the test suite
 flake.nix                 inputs and outputs only
-.gitlab-ci.yml            CI, a single `nix flake check` job
+.github/workflows/ci.yml  CI, a single `nix flake check` job
 ```
 
 `lib/default.nix` owns the one piece of real logic: `mkInitScript` turns a set of repository

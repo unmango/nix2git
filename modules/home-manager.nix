@@ -57,7 +57,7 @@ in
       default = { };
       example = lib.literalExpression ''
         {
-          "src/gitlab.com/unmango/nix/2git" = { };
+          "src/github.com/unmango/nix2git" = { };
           "mirrors/dotfiles.git".bare = true;
         }
       '';
