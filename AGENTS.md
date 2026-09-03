@@ -3,8 +3,10 @@
 `nix2git` is a Nix library flake that creates and manages git repositories in a user's home directory.
 The primary consumer-facing output is a home-manager module; a flake-parts module offers the same behaviour for project-local repositories.
 
-The only implemented feature is initializing empty repositories at a given path.
-Anything that mutates an existing repository is out of scope until it is asked for.
+The implemented features are initializing empty repositories at a given path and reconciling their remotes.
+Remotes are the one thing nix2git changes in a repository it did not create: a declared remote that is
+missing is added, and one pointing elsewhere is rewritten, on every run rather than only at creation.
+Everything else about a repository it finds in place is left alone until it is asked for.
 
 nix2git never deletes a repository, and that is a deliberate limit rather than a missing feature.
 `files.nix` in home-manager only removes a path it can prove it created, meaning a symlink into a
@@ -31,6 +33,7 @@ Run `nix fmt` before committing; `checks.treefmt` fails the build otherwise.
 ```
 lib/default.nix          pure functions, takes `lib`, no flake inputs
 modules/repository.nix    submodule shared by both consumer modules
+modules/remote.nix        submodule for one remote, nested under a repository
 modules/home-manager.nix  home-manager module, `nix2git.*`
 modules/flake.nix         flake-parts module, `perSystem.nix2git.*`
 checks/                   flake-parts module holding the test suite
@@ -40,7 +43,9 @@ flake.nix                 inputs and outputs only
 
 `lib/default.nix` owns the one piece of real logic: `mkInitScript` turns a set of repository
 submodule values into a POSIX shell script that runs `git init` for each repository that does
-not exist yet. Both consumer modules are thin wrappers that supply a git path, a base directory,
+not exist yet, and then reconciles the remotes of every repository it manages.
+The remote block sits behind its own `[ -e <marker> ]` guard rather than inside the init guard,
+because under `--dry-run` the `git init` never actually ran and the path is not there to talk to. Both consumer modules are thin wrappers that supply a git path, a base directory,
 and a command prefix. Keeping the script generation in `lib` is what makes it testable without
 evaluating home-manager.
 
@@ -61,10 +66,11 @@ first activation, so the entry has to tolerate its absence.
 The flake-parts module has no equivalent. There is no generation to diff against, so removal is
 invisible to it by construction.
 
-The checks cover four layers: the rendered script actually creating repositories in a sandbox,
-the home-manager module producing the right activation text, the flake-parts module producing
-a working app via `evalFlakeModule`, and the orphan script warning about exactly the repositories
-that were dropped and still exist.
+The checks cover five layers: the rendered script actually creating repositories in a sandbox,
+the same script adding and rewriting remotes on repositories it did not create, the home-manager
+module producing the right activation text, the flake-parts module producing a working app via
+`evalFlakeModule`, and the orphan script warning about exactly the repositories that were dropped
+and still exist.
 
 ## Conventions
 

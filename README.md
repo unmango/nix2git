@@ -15,8 +15,8 @@ A flake-parts module covers the same ground for repositories that belong to a pr
 
 ## Status
 
-The only implemented feature is creating empty repositories at a given path.
-A repository that already exists is left alone; nix2git never rewrites history, changes remotes, or fetches.
+The implemented features are creating empty repositories at a given path and keeping their remotes in sync.
+Everything else about a repository that already exists is left alone; nix2git never rewrites history, deletes, or fetches.
 
 ## home-manager
 
@@ -28,7 +28,9 @@ A repository that already exists is left alone; nix2git never rewrites history, 
     enable = true;
 
     repositories = {
-      "src/github.com/unmango/nix2git" = { };
+      "src/github.com/unmango/nix2git".remotes = {
+        origin.url = "git@github.com:unmango/nix2git.git";
+      };
       "mirrors/dotfiles.git" = {
         bare = true;
         defaultBranch = "main";
@@ -84,6 +86,19 @@ Each entry in `repositories` accepts:
 | `path`          | str               | the attribute name | Working tree, or the repository itself when `bare`  |
 | `bare`          | bool              | `false`            | Create with `git init --bare`                       |
 | `defaultBranch` | null or str       | `null`             | Passed as `--initial-branch`                        |
+| `remotes`       | attrs of remote   | `{ }`              | Remotes to register, keyed by name                  |
+
+Each entry in `remotes` accepts:
+
+| Option   | Type | Default            | Meaning                        |
+| -------- | ---- | ------------------ | ------------------------------ |
+| `enable` | bool | `true`             | Whether to manage this remote  |
+| `name`   | str  | the attribute name | Name the remote is registered under |
+| `url`    | str  | required           | URL the remote points at       |
+
+Remotes are reconciled on every run, not only when the repository is created.
+A declared remote that is missing is added, and one pointing somewhere else is rewritten.
+A remote nix2git does not declare is left alone, and disabling one does not remove it.
 
 ## Library
 
