@@ -51,7 +51,11 @@ in
         }
       '';
       description = ''
-        Remotes to register in the repository, keyed by remote name.
+        Remotes to register in the repository.
+
+        The attribute name is the default for {option}`remotes.<name>.name`, which
+        is what the remote is actually called in the repository; set that option
+        to use a key the git remote name cannot take.
 
         Unlike the repository itself, remotes are reconciled on every run, so a
         remote added here later reaches a repository that already exists. A
