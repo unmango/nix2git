@@ -10,12 +10,53 @@ let
 
   enabledRepositories =
     repositories: lib.filter (repository: repository.enable) (lib.attrValues repositories);
+
+  enabledRemotes = remotes: lib.filter (remote: remote.enable) (lib.attrValues remotes);
+
+  # `remote get-url` exits non-zero for a remote that is not there, and both
+  # callers run the script under `set -e`, so the failure has to be swallowed
+  # rather than branched on.
+  remoteCommand =
+    {
+      git,
+      run,
+      path,
+    }:
+    remote:
+    let
+      quotedPath = escapeShellArg path;
+      quotedName = escapeShellArg remote.name;
+      quotedUrl = escapeShellArg remote.url;
+      command =
+        verb:
+        lib.concatStringsSep " " (
+          optional (run != "") run
+          ++ [
+            git
+            "-C"
+            quotedPath
+            "remote"
+            verb
+            quotedName
+            quotedUrl
+          ]
+        );
+    in
+    ''
+      nix2gitRemoteUrl="$(${git} -C ${quotedPath} remote get-url ${quotedName} 2>/dev/null || true)"
+      if [ -z "$nix2gitRemoteUrl" ]; then
+        ${command "add"}
+      elif [ "$nix2gitRemoteUrl" != ${quotedUrl} ]; then
+        ${command "set-url"}
+      fi
+    '';
 in
 {
-  inherit enabledRepositories resolve;
+  inherit enabledRemotes enabledRepositories resolve;
 
   /**
-    Render a POSIX shell script that creates each repository that does not exist yet.
+    Render a POSIX shell script that creates each repository that does not exist
+    yet and reconciles the remotes of every repository it manages.
 
     # Inputs
 
@@ -43,6 +84,8 @@ in
         repository:
         let
           path = resolve base repository.path;
+          marker = escapeShellArg (initMarker repository path);
+          remotes = enabledRemotes repository.remotes;
           flags =
             optional repository.bare "--bare"
             ++ optional (
@@ -59,8 +102,17 @@ in
           );
         in
         ''
-          if [ ! -e ${escapeShellArg (initMarker repository path)} ]; then
+          if [ ! -e ${marker} ]; then
             ${command}
+          fi
+        ''
+        # The repository is missing here whenever `run` did not actually run,
+        # which is exactly what home-manager's --dry-run does, so the remotes
+        # need a guard of their own rather than riding on the one above.
+        + lib.optionalString (remotes != [ ]) ''
+          if [ -e ${marker} ]; then
+          ${lib.concatMapStringsSep "\n" (remoteCommand { inherit git run path; }) remotes}
+          unset nix2gitRemoteUrl
           fi
         '';
     in

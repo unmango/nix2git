@@ -26,7 +26,7 @@
               nix2git = {
                 enable = true;
                 repositories = {
-                  demo = { };
+                  demo.remotes.origin.url = "https://example.invalid/demo.git";
                   "nested/demo.git".bare = true;
                 };
               };
@@ -47,7 +47,13 @@
             nix2git = {
               enable = true;
               repositories = {
-                "src/example" = { };
+                "src/example".remotes = {
+                  origin.url = "git@github.com:unmango/example.git";
+                  ignored = {
+                    enable = false;
+                    url = "https://example.invalid/ignored.git";
+                  };
+                };
                 "mirrors/example.git" = {
                   bare = true;
                   defaultBranch = "trunk";
@@ -82,24 +88,28 @@
                     path = "fresh";
                     bare = false;
                     defaultBranch = "trunk";
+                    remotes = { };
                   };
                   mirror = {
                     enable = true;
                     path = "nested/mirror.git";
                     bare = true;
                     defaultBranch = null;
+                    remotes = { };
                   };
                   existing = {
                     enable = true;
                     path = "existing";
                     bare = false;
                     defaultBranch = null;
+                    remotes = { };
                   };
                   skipped = {
                     enable = false;
                     path = "skipped";
                     bare = false;
                     defaultBranch = null;
+                    remotes = { };
                   };
                 };
               }}
@@ -109,6 +119,74 @@
               [ -f nested/mirror.git/HEAD ]
               [ ! -e skipped ]
               [ -f existing/sentinel ]
+
+              touch "$out"
+            '';
+
+        # Remotes are reconciled rather than created, so the script has to reach
+        # a repository it did not make, and has to be safe to run twice.
+        remotes =
+          let
+            remote = url: {
+              origin = {
+                enable = true;
+                name = "origin";
+                inherit url;
+              };
+            };
+
+            repository = path: remotes: {
+              enable = true;
+              bare = false;
+              defaultBranch = null;
+              inherit path remotes;
+            };
+
+            script = nix2git.mkInitScript {
+              git = "git";
+              repositories = {
+                fresh = repository "fresh" (remote "https://example.invalid/fresh.git");
+                adopted = repository "adopted" (remote "https://example.invalid/adopted.git");
+                stale = repository "stale" (remote "https://example.invalid/stale.git");
+                disabled = repository "disabled" {
+                  origin = {
+                    enable = false;
+                    name = "origin";
+                    url = "https://example.invalid/disabled.git";
+                  };
+                };
+              };
+            };
+
+            assertions = ''
+              [ "$(git -C fresh remote get-url origin)" = https://example.invalid/fresh.git ]
+              [ "$(git -C adopted remote get-url origin)" = https://example.invalid/adopted.git ]
+              [ "$(git -C stale remote get-url origin)" = https://example.invalid/stale.git ]
+              [ "$(git -C stale remote)" = origin ]
+              [ -z "$(git -C disabled remote)" ]
+            '';
+          in
+          pkgs.runCommand "nix2git-remotes"
+            {
+              nativeBuildInputs = [ pkgs.git ];
+            }
+            ''
+              export HOME="$PWD"
+
+              # adopted and stale exist already, so the script only ever touches
+              # their remotes.
+              git init adopted
+              git init stale
+              git -C stale remote add origin https://example.invalid/outdated.git
+
+              ${script}
+
+              ${assertions}
+
+              # Idempotence: a second run leaves everything as it was.
+              ${script}
+
+              ${assertions}
 
               touch "$out"
             '';
@@ -126,6 +204,7 @@
 
               [ -d demo/.git ]
               [ -f nested/demo.git/HEAD ]
+              [ "$(git -C demo remote get-url origin)" = https://example.invalid/demo.git ]
 
               touch "$out"
             '';
@@ -200,6 +279,13 @@
             esac
             case "$script" in
               *src/disabled*) echo "disabled repository was emitted" >&2; exit 1 ;;
+            esac
+            case "$script" in
+              *"remote add origin git@github.com:unmango/example.git"*) ;;
+              *) echo "missing origin remote" >&2; exit 1 ;;
+            esac
+            case "$script" in
+              *ignored*) echo "disabled remote was emitted" >&2; exit 1 ;;
             esac
 
             touch "$out"

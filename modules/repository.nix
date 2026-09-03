@@ -41,5 +41,26 @@ in
         `init.defaultBranch` configuration decides.
       '';
     };
+
+    remotes = mkOption {
+      type = types.attrsOf (types.submodule ./remote.nix);
+      default = { };
+      example = lib.literalExpression ''
+        {
+          origin.url = "git@github.com:unmango/nix2git.git";
+        }
+      '';
+      description = ''
+        Remotes to register in the repository.
+
+        The attribute name is the default for {option}`remotes.<name>.name`, which
+        is what the remote is actually called in the repository; set that option
+        to use a key the git remote name cannot take.
+
+        Unlike the repository itself, remotes are reconciled on every run, so a
+        remote added here later reaches a repository that already exists. A
+        remote nix2git does not declare is left alone.
+      '';
+    };
   };
 }
