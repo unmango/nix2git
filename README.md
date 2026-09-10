@@ -98,6 +98,7 @@ Each entry in `remotes` accepts:
 
 Remotes are reconciled on every run, not only when the repository is created.
 A declared remote that is missing is added, and one pointing somewhere else is rewritten.
+A declared remote with no fetch refspec gets git's default, `+refs/heads/*:refs/remotes/<name>/*`; an existing refspec is left alone.
 A remote nix2git does not declare is left alone, and disabling one does not remove it.
 
 ## Library

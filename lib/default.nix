@@ -27,27 +27,47 @@ let
       quotedPath = escapeShellArg path;
       quotedName = escapeShellArg remote.name;
       quotedUrl = escapeShellArg remote.url;
+      fetchKey = escapeShellArg "remote.${remote.name}.fetch";
       command =
-        verb:
+        args:
         lib.concatStringsSep " " (
           optional (run != "") run
           ++ [
             git
             "-C"
             quotedPath
-            "remote"
-            verb
-            quotedName
-            quotedUrl
           ]
+          ++ args
         );
     in
+    # `remote add` writes the default refspec, `set-url` does not, so a remote
+    # found with only a URL needs one added.
     ''
       nix2gitRemoteUrl="$(${git} -C ${quotedPath} remote get-url ${quotedName} 2>/dev/null || true)"
       if [ -z "$nix2gitRemoteUrl" ]; then
-        ${command "add"}
-      elif [ "$nix2gitRemoteUrl" != ${quotedUrl} ]; then
-        ${command "set-url"}
+        ${command [
+          "remote"
+          "add"
+          quotedName
+          quotedUrl
+        ]}
+      else
+        if [ "$nix2gitRemoteUrl" != ${quotedUrl} ]; then
+          ${command [
+            "remote"
+            "set-url"
+            quotedName
+            quotedUrl
+          ]}
+        fi
+        if ! ${git} -C ${quotedPath} config --get-all ${fetchKey} >/dev/null; then
+          ${command [
+            "config"
+            "--add"
+            fetchKey
+            (escapeShellArg "+refs/heads/*:refs/remotes/${remote.name}/*")
+          ]}
+        fi
       fi
     '';
 in

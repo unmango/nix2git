@@ -148,6 +148,9 @@
                 fresh = repository "fresh" (remote "https://example.invalid/fresh.git");
                 adopted = repository "adopted" (remote "https://example.invalid/adopted.git");
                 stale = repository "stale" (remote "https://example.invalid/stale.git");
+                unfetched = repository "unfetched" (remote "https://example.invalid/unfetched.git");
+                moved = repository "moved" (remote "https://example.invalid/moved.git");
+                custom = repository "custom" (remote "https://example.invalid/custom.git");
                 disabled = repository "disabled" {
                   origin = {
                     enable = false;
@@ -164,6 +167,12 @@
               [ "$(git -C stale remote get-url origin)" = https://example.invalid/stale.git ]
               [ "$(git -C stale remote)" = origin ]
               [ -z "$(git -C disabled remote)" ]
+
+              for repository in fresh adopted stale unfetched moved; do
+                [ "$(git -C "$repository" config --get-all remote.origin.fetch)" = '+refs/heads/*:refs/remotes/origin/*' ]
+              done
+              [ "$(git -C moved remote get-url origin)" = https://example.invalid/moved.git ]
+              [ "$(git -C custom config --get-all remote.origin.fetch)" = '+refs/heads/main:refs/remotes/origin/main' ]
             '';
           in
           pkgs.runCommand "nix2git-remotes"
@@ -178,6 +187,15 @@
               git init adopted
               git init stale
               git -C stale remote add origin https://example.invalid/outdated.git
+
+              # A remote configured by URL alone has no fetch refspec, whether
+              # the URL already matches or has to be rewritten.
+              git init unfetched
+              git -C unfetched config remote.origin.url https://example.invalid/unfetched.git
+              git init moved
+              git -C moved config remote.origin.url https://example.invalid/elsewhere.git
+              git init custom
+              git -C custom remote add -t main origin https://example.invalid/custom.git
 
               ${script}
 
