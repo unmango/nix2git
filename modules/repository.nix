@@ -1,6 +1,14 @@
-{ name, lib, ... }:
+{
+  config,
+  name,
+  lib,
+  ...
+}:
 let
   inherit (lib) mkOption types;
+
+  nix2git = import ../lib { inherit lib; };
+  remoteNames = map (remote: remote.name) (nix2git.enabledRemotes config.remotes);
 in
 {
   options = {
@@ -60,6 +68,28 @@ in
         Unlike the repository itself, remotes are reconciled on every run, so a
         remote added here later reaches a repository that already exists. A
         remote nix2git does not declare is left alone.
+      '';
+    };
+
+    upstream = mkOption {
+      type = types.nullOr types.str;
+      default =
+        if lib.elem "origin" remoteNames then
+          "origin"
+        else if lib.length remoteNames == 1 then
+          lib.head remoteNames
+        else
+          null;
+      defaultText = lib.literalMD "`origin` when declared, else the only enabled remote, else `null`";
+      example = "upstream";
+      description = ''
+        Remote `git pull` tracks, by the name git knows it under
+        ({option}`remotes.<name>.name`). `null` sets up no tracking.
+
+        nix2git sets `branch.<b>.remote` and `branch.<b>.merge` without
+        fetching. `<b>` is {option}`defaultBranch`, or when that is `null`,
+        the branch HEAD points at while it has no commits. A branch that
+        already has an upstream keeps it, and bare repositories are skipped.
       '';
     };
   };

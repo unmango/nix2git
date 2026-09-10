@@ -6,6 +6,7 @@ The primary consumer-facing output is a home-manager module; a flake-parts modul
 The implemented features are initializing empty repositories at a given path and reconciling their remotes.
 Remotes are the one thing nix2git changes in a repository it did not create: a declared remote that is
 missing is added, and one pointing elsewhere is rewritten, on every run rather than only at creation.
+Branch tracking is the exception to "reconcile": `branch.<b>.remote` and `branch.<b>.merge` are written only when `branch.<b>.remote` is unset, so an upstream the user changed survives.
 Everything else about a repository it finds in place is left alone until it is asked for.
 
 nix2git never deletes a repository, and that is a deliberate limit rather than a missing feature.
@@ -66,8 +67,9 @@ first activation, so the entry has to tolerate its absence.
 The flake-parts module has no equivalent. There is no generation to diff against, so removal is
 invisible to it by construction.
 
-The checks cover five layers: the rendered script actually creating repositories in a sandbox,
-the same script adding and rewriting remotes on repositories it did not create, the home-manager
+The checks cover six layers: the rendered script actually creating repositories in a sandbox,
+the same script adding and rewriting remotes on repositories it did not create, the same script
+setting branch tracking so a real `git pull` succeeds, the home-manager
 module producing the right activation text, the flake-parts module producing a working app via
 `evalFlakeModule`, and the orphan script warning about exactly the repositories that were dropped
 and still exist.

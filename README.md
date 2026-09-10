@@ -15,7 +15,7 @@ A flake-parts module covers the same ground for repositories that belong to a pr
 
 ## Status
 
-The implemented features are creating empty repositories at a given path and keeping the remotes you declare in sync.
+The implemented features are creating empty repositories at a given path, keeping the remotes you declare in sync, and setting branch tracking so `git pull` works.
 A remote you do not declare is left alone, as is everything else about a repository that already exists; nix2git never rewrites history, deletes, or fetches.
 
 ## home-manager
@@ -87,6 +87,7 @@ Each entry in `repositories` accepts:
 | `bare`          | bool              | `false`            | Create with `git init --bare`                       |
 | `defaultBranch` | null or str       | `null`             | Passed as `--initial-branch`                        |
 | `remotes`       | attrs of remote   | `{ }`              | Remotes to register, keyed by their `name`          |
+| `upstream`      | null or str       | see below          | Remote `git pull` tracks                            |
 
 Each entry in `remotes` accepts:
 
@@ -99,6 +100,16 @@ Each entry in `remotes` accepts:
 Remotes are reconciled on every run, not only when the repository is created.
 A declared remote that is missing is added, and one pointing somewhere else is rewritten.
 A remote nix2git does not declare is left alone, and disabling one does not remove it.
+
+### Tracking
+
+`upstream` names the remote `git pull` tracks, so a repository nix2git creates needs only `git pull` to receive the remote's history.
+It defaults to `origin` when a remote by that name is declared, else to the only declared remote, else to `null`, which sets up no tracking.
+
+nix2git sets `branch.<b>.remote` to `upstream` and `branch.<b>.merge` to `refs/heads/<b>`, without fetching.
+`<b>` is `defaultBranch` when it is set.
+When it is `null`, `<b>` is the branch HEAD points at, and only while that branch has no commits, so a repository already in use is left alone.
+A branch that already has `branch.<b>.remote` keeps it, and bare repositories are skipped.
 
 ## Library
 
