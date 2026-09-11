@@ -209,6 +209,145 @@
               touch "$out"
             '';
 
+        # `git pull` has to work on the branch HEAD starts on, with no fetch at
+        # run time, and an upstream already in place must survive.
+        tracking =
+          let
+            repository =
+              path: attrs:
+              {
+                enable = true;
+                bare = false;
+                defaultBranch = null;
+                upstream = "origin";
+                remotes.origin = {
+                  enable = true;
+                  name = "origin";
+                  # Resolved against the repository, since every git call runs under -C.
+                  url = "../upstream.git";
+                };
+                inherit path;
+              }
+              // attrs;
+
+            script = nix2git.mkInitScript {
+              git = "git";
+              repositories = {
+                fresh = repository "fresh" { defaultBranch = "main"; };
+                legacy = repository "legacy" { };
+                working = repository "working" { };
+                pinned = repository "pinned" { };
+                declared = repository "declared" { defaultBranch = "main"; };
+                untracked = repository "untracked" { upstream = null; };
+                mirror = repository "mirror.git" { bare = true; };
+              };
+            };
+
+            assertions = ''
+              for repository in fresh legacy declared; do
+                [ "$(git -C "$repository" config --get-all branch.main.remote)" = origin ]
+                [ "$(git -C "$repository" config --get-all branch.main.merge)" = refs/heads/main ]
+              done
+              [ -z "$(git -C working config --get-regexp '^branch\.' || true)" ]
+              [ "$(git -C pinned config --get-all branch.main.remote)" = fork ]
+              [ -z "$(git -C pinned config --get-all branch.main.merge || true)" ]
+              [ -z "$(git -C untracked config --get-regexp '^branch\.' || true)" ]
+              [ -z "$(git -C mirror.git config --get-regexp '^branch\.' || true)" ]
+            '';
+          in
+          pkgs.runCommand "nix2git-tracking"
+            {
+              nativeBuildInputs = [ pkgs.git ];
+            }
+            ''
+              export HOME="$PWD"
+              export GIT_AUTHOR_NAME=nix2git GIT_AUTHOR_EMAIL=nix2git@example.invalid
+              export GIT_COMMITTER_NAME=nix2git GIT_COMMITTER_EMAIL=nix2git@example.invalid
+              git config --global init.defaultBranch main
+
+              git init --bare upstream.git
+              git init seed
+              git -C seed commit --allow-empty -m seed
+              git -C seed push ../upstream.git main
+
+              # legacy predates remotes. working and declared have commits on
+              # another branch, and pinned tracks a remote of its own choosing.
+              git init legacy
+              git init working
+              git -C working symbolic-ref HEAD refs/heads/feature
+              git -C working commit --allow-empty -m work
+              git init pinned
+              git -C pinned config branch.main.remote fork
+              git init declared
+              git -C declared symbolic-ref HEAD refs/heads/feature
+              git -C declared commit --allow-empty -m work
+
+              ${script}
+
+              ${assertions}
+
+              # Idempotence: a second run leaves everything as it was.
+              ${script}
+
+              ${assertions}
+
+              git -C fresh pull
+              git -C legacy pull
+              [ "$(git -C fresh rev-parse HEAD)" = "$(git -C upstream.git rev-parse main)" ]
+              [ "$(git -C legacy rev-parse HEAD)" = "$(git -C upstream.git rev-parse main)" ]
+
+              touch "$out"
+            '';
+
+        # `upstream` defaults to origin, else the only remote, else nothing,
+        # and it names the remote as git knows it rather than by its key.
+        upstream-default =
+          let
+            upstreamOf =
+              remotes:
+              (lib.evalModules {
+                modules = [
+                  ../modules/repository.nix
+                  {
+                    _module.args.name = "demo";
+                    inherit remotes;
+                  }
+                ];
+              }).config.upstream;
+            url = "https://example.invalid/demo.git";
+          in
+          assert upstreamOf { } == null;
+          assert upstreamOf { fork.url = url; } == "fork";
+          assert
+            upstreamOf {
+              origin.url = url;
+              fork.url = url;
+            } == "origin";
+          assert
+            upstreamOf {
+              upstream.url = url;
+              fork.url = url;
+            } == null;
+          assert
+            upstreamOf {
+              origin = {
+                enable = false;
+                inherit url;
+              };
+              fork.url = url;
+            } == "fork";
+          assert
+            upstreamOf {
+              primary = {
+                name = "origin";
+                inherit url;
+              };
+              fork.url = url;
+            } == "origin";
+          pkgs.runCommand "nix2git-upstream-default" { } ''
+            touch "$out"
+          '';
+
         # The flake module's generated app has to create the same repositories
         # relative to the directory it is run from.
         flake-module =

@@ -70,13 +70,65 @@ let
         fi
       fi
     '';
+
+  # Only while HEAD is unborn when no branch is declared: once a repository
+  # has commits, whatever branch is checked out is the user's business.
+  trackingCommand =
+    {
+      git,
+      run,
+      path,
+    }:
+    repository:
+    let
+      quotedPath = escapeShellArg path;
+      config =
+        args:
+        lib.concatStringsSep " " (
+          optional (run != "") run
+          ++ [
+            git
+            "-C"
+            quotedPath
+            "config"
+          ]
+          ++ args
+        );
+    in
+    (
+      if repository.defaultBranch != null then
+        ''
+          nix2gitBranch=${escapeShellArg repository.defaultBranch}
+        ''
+      else
+        ''
+          nix2gitBranch="$(${git} -C ${quotedPath} symbolic-ref --quiet --short HEAD || true)"
+          if ${git} -C ${quotedPath} rev-parse --quiet --verify HEAD >/dev/null; then
+            nix2gitBranch=
+          fi
+        ''
+    )
+    + ''
+      if [ -n "$nix2gitBranch" ] \
+        && ! ${git} -C ${quotedPath} config --get-all "branch.$nix2gitBranch.remote" >/dev/null; then
+        ${config [
+          ''"branch.$nix2gitBranch.remote"''
+          (escapeShellArg repository.upstream)
+        ]}
+        ${config [
+          ''"branch.$nix2gitBranch.merge"''
+          ''"refs/heads/$nix2gitBranch"''
+        ]}
+      fi
+    '';
 in
 {
   inherit enabledRemotes enabledRepositories resolve;
 
   /**
     Render a POSIX shell script that creates each repository that does not exist
-    yet and reconciles the remotes of every repository it manages.
+    yet, reconciles the remotes of every repository it manages, and points the
+    branch `git pull` uses at the repository's `upstream` remote.
 
     # Inputs
 
@@ -106,6 +158,7 @@ in
           path = resolve base repository.path;
           marker = escapeShellArg (initMarker repository path);
           remotes = enabledRemotes repository.remotes;
+          tracking = !repository.bare && repository.upstream or null != null;
           flags =
             optional repository.bare "--bare"
             ++ optional (
@@ -129,10 +182,11 @@ in
         # The repository is missing here whenever `run` did not actually run,
         # which is exactly what home-manager's --dry-run does, so the remotes
         # need a guard of their own rather than riding on the one above.
-        + lib.optionalString (remotes != [ ]) ''
+        + lib.optionalString (remotes != [ ] || tracking) ''
           if [ -e ${marker} ]; then
           ${lib.concatMapStringsSep "\n" (remoteCommand { inherit git run path; }) remotes}
-          unset nix2gitRemoteUrl
+          ${lib.optionalString tracking (trackingCommand { inherit git run path; } repository)}
+          unset nix2gitRemoteUrl nix2gitBranch
           fi
         '';
     in
