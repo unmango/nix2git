@@ -32,7 +32,8 @@ in
         URL the remote points at.
 
         The URL is reconciled on every run: a missing remote is added, and one
-        pointing somewhere else is rewritten.
+        pointing somewhere else is rewritten. A remote with no fetch refspec
+        gets git's default one; an existing refspec is left alone.
       '';
     };
   };
