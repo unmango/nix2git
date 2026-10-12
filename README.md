@@ -1,5 +1,7 @@
 # nix2git
 
+[![Hercules CI](https://hercules-ci.com/api/v1/site/github/account/unmango/project/nix2git/badge)](https://hercules-ci.com/github/unmango/nix2git)
+
 Nix support for initializing and managing git repositories in a user's home directory.
 
 The primary output is a home-manager module.
